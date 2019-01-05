@@ -3,7 +3,9 @@ package main
 import (
 	"log"
 	"net/http"
+	"net/url"
 
+	"github.com/go-session/session"
 	"gopkg.in/oauth2.v3/errors"
 	"gopkg.in/oauth2.v3/manage"
 	"gopkg.in/oauth2.v3/models"
@@ -48,7 +50,27 @@ func main() {
 
 	http.HandleFunc("/login", LoginHandler)
 	http.HandleFunc("/auth", LoggedHandler)
-	http.HandleFunc("/authorize", AuthorizeHandler)
+	http.HandleFunc("/authorize", func(w http.ResponseWriter, req *http.Request) {
+		store, err := session.Start(nil, w, req)
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+
+		var form url.Values
+		if v, ok := store.Get("ReturnUri"); ok {
+			form = v.(url.Values)
+		}
+		req.Form = form
+
+		store.Delete("ReturnUri")
+		store.Save()
+
+		err = srv.HandleAuthorizeRequest(w, req)
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusBadRequest)
+		}
+	})
 	http.HandleFunc("/token", func(w http.ResponseWriter, req *http.Request) {
 		err := srv.HandleTokenRequest(w, req)
 		if err != nil {
