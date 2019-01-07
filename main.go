@@ -15,69 +15,68 @@ import (
 
 func main() {
 	manager := manage.NewDefaultManager()
-
-	// store client
+	// token store
 	manager.MustTokenStorage(store.NewMemoryTokenStore())
 
-	firstClientStore := store.NewClientStore()
-	firstClientStore.Set("11111", &models.Client{
-		ID:     "1111",
-		Secret: "111111",
-		Domain: "",
+	clientStore := store.NewClientStore()
+	clientStore.Set("delta-test", &models.Client{
+		ID:     "delta-test",
+		Secret: "delta-test-secret",
+		Domain: "http://localhost:9094",
 	})
-
-	manager.MapClientStorage(firstClientStore)
-
-	secondClientStore := store.NewClientStore()
-	secondClientStore.Set("22222", &models.Client{
-		ID:     "2222",
-		Secret: "222222",
-		Domain: "",
-	})
-
-	manager.MapClientStorage(secondClientStore)
+	manager.MapClientStorage(clientStore)
 
 	srv := server.NewServer(server.NewConfig(), manager)
 	srv.SetUserAuthorizationHandler(UserAuthorizeHandler)
+
 	srv.SetInternalErrorHandler(func(err error) (re *errors.Response) {
-		log.Println("Error:", err.Error())
+		log.Println("Internal Error:", err.Error())
 		return
 	})
 
 	srv.SetResponseErrorHandler(func(re *errors.Response) {
-		log.Println("Error:", re.Error.Error())
+		log.Println("Response Error:", re.Error.Error())
 	})
 
 	http.HandleFunc("/login", LoginHandler)
 	http.HandleFunc("/auth", LoggedHandler)
-	http.HandleFunc("/authorize", func(w http.ResponseWriter, req *http.Request) {
-		store, err := session.Start(nil, w, req)
+
+	// 1. routed to 'authorize' by client
+	// 13. call '/authorize POST' after press 'Allow' button in auth.html
+	http.HandleFunc("/authorize", func(w http.ResponseWriter, r *http.Request) {
+		log.Println("Authorize process")
+		store, err := session.Start(nil, w, r)
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
 		}
 
 		var form url.Values
-		if v, ok := store.Get("ReturnUri"); ok {
+		v, ok := store.Get("ReturnUri")
+		if ok {
+			// 14. set form data in 'ReturnUri'
 			form = v.(url.Values)
 		}
-		req.Form = form
+		r.Form = form
 
 		store.Delete("ReturnUri")
 		store.Save()
 
-		err = srv.HandleAuthorizeRequest(w, req)
+		// 2. find auth request handler which set by 'SetUserAuthorizationHandler'
+		// It is set as 'userAuthorizeHandler' here
+		err = srv.HandleAuthorizeRequest(w, r)
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusBadRequest)
 		}
 	})
-	http.HandleFunc("/token", func(w http.ResponseWriter, req *http.Request) {
-		err := srv.HandleTokenRequest(w, req)
-		if err != nil {
 
+	http.HandleFunc("/token", func(w http.ResponseWriter, r *http.Request) {
+		err := srv.HandleTokenRequest(w, r)
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
 		}
 	})
 
-	log.Println("Server runs in localhost:9096")
+	log.Println("Server is running at 9096 port.")
 	log.Fatal(http.ListenAndServe(":9096", nil))
 }
