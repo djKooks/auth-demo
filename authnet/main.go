@@ -1,6 +1,7 @@
 package main
 
 import (
+	"encoding/json"
 	"log"
 	"net/http"
 	"net/url"
@@ -83,6 +84,31 @@ func main() {
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 		}
+	})
+
+	// send user information to client with token
+	http.HandleFunc("/userinfo", func(w http.ResponseWriter, r *http.Request) {
+		token, err := srv.ValidationBearerToken(r)
+		if err != nil {
+			// if fail on getting token...
+			http.Error(w, err.Error(), http.StatusBadRequest)
+			return
+		}
+
+		// TODO: Get user information from client ID, and set in `userData`
+		userData := map[string]interface{}{
+			"expireRemain": int64(token.GetAccessCreateAt().Add(token.GetAccessExpiresIn()).Sub(time.Now()).Seconds()),
+			"clientID":     token.GetClientID(),
+			"userID":       token.GetUserID(),
+			"plan":         "trial",
+		}
+
+		jsonData, _ := json.Marshal(userData)
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusCreated)
+		w.Write(jsonData)
+
+		return
 	})
 
 	log.Println("Server is running at 9096 port.")
