@@ -4,6 +4,7 @@ import (
 	"log"
 	"net/http"
 	"net/url"
+	"time"
 
 	"github.com/go-session/session"
 	"gopkg.in/oauth2.v3/errors"
@@ -17,6 +18,13 @@ func main() {
 	manager := manage.NewDefaultManager()
 	// token store
 	manager.MustTokenStorage(store.NewMemoryTokenStore())
+
+	tokenCfg := manage.DefaultAuthorizeCodeTokenCfg
+	tokenCfg.AccessTokenExp = time.Minute * 2
+	tokenCfg.RefreshTokenExp = time.Minute * 4
+	// log.Println("Token config:", tokenCfg)
+
+	manager.SetAuthorizeCodeTokenCfg(tokenCfg)
 
 	clientStore := store.NewClientStore()
 	clientStore.Set("delta-test", &models.Client{
