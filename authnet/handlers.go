@@ -7,6 +7,7 @@ import (
 	"github.com/go-session/session"
 )
 
+// 6. Go to login page
 func LoginHandler(w http.ResponseWriter, req *http.Request) {
 	store, err := session.Start(nil, w, req)
 	if err != nil {
@@ -17,13 +18,21 @@ func LoginHandler(w http.ResponseWriter, req *http.Request) {
 	if req.Method == "POST" {
 		// 8. after press login button, store userID
 		name := req.PostFormValue("username")
-		store.Set("LoggedInUserID", name)
-		store.Save()
+		pw := req.PostFormValue("password")
 
-		// 9. move to 'authHandler'
-		w.Header().Set("Location", "/auth")
-		w.WriteHeader(http.StatusFound)
-		return
+		// TODO: need to check name and password by comparing user data from Database
+		if name == "2222" && pw == "222222" {
+			store.Set("LoggedInUserID", name)
+			store.Save()
+
+			// 9. move to 'LoggedHandler'
+			w.Header().Set("Location", "/auth")
+			w.WriteHeader(http.StatusFound)
+			return
+		} else {
+			log.Println("invalid name or password")
+		}
+
 	}
 
 	// 7. show login page
@@ -32,6 +41,7 @@ func LoginHandler(w http.ResponseWriter, req *http.Request) {
 	outputHtml(w, req, "static/login.html")
 }
 
+//10. logged-in handler
 func LoggedHandler(w http.ResponseWriter, req *http.Request) {
 	store, err := session.Start(nil, w, req)
 	if err != nil {
@@ -50,6 +60,7 @@ func LoggedHandler(w http.ResponseWriter, req *http.Request) {
 	outputHtml(w, req, "static/auth.html")
 }
 
+// 3, 14. handle auth request
 func UserAuthorizeHandler(w http.ResponseWriter, req *http.Request) (userID string, err error) {
 	store, err := session.Start(nil, w, req)
 	if err != nil {
@@ -57,7 +68,7 @@ func UserAuthorizeHandler(w http.ResponseWriter, req *http.Request) (userID stri
 	}
 
 	uid, ok := store.Get("LoggedInUserID")
-	log.Println("uid: ", uid)
+	log.Println("user id: ", uid)
 
 	if !ok {
 		// 4. There will be no 'LoggedInUserID' in store first time
@@ -75,9 +86,9 @@ func UserAuthorizeHandler(w http.ResponseWriter, req *http.Request) (userID stri
 	}
 
 	userID = uid.(string)
-	// store.Delete("LoggedInUserID")
-	// store.Save()
+	store.Delete("LoggedInUserID")
+	store.Save()
 
-	log.Println("direct login : ", userID)
+	log.Println("direct login : ", req.Form)
 	return
 }
