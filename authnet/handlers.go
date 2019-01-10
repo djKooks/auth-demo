@@ -26,7 +26,7 @@ func LoginHandler(w http.ResponseWriter, req *http.Request) {
 			store.Save()
 
 			// 9. move to 'LoggedHandler'
-			w.Header().Set("Location", "/auth")
+			w.Header().Set("Location", "/authorize")
 			w.WriteHeader(http.StatusFound)
 			return
 		} else {
