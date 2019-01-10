@@ -2,9 +2,8 @@ package main
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
-	"io/ioutil"
+	"io"
 	"log"
 	"net/http"
 	"os"
@@ -75,6 +74,7 @@ func main() {
 			return
 		}
 
+		log.Println("Access token:", globalToken.AccessToken)
 		resp, err := http.Get(fmt.Sprintf("%s/userinfo?access_token=%s", AuthServerURL, globalToken.AccessToken))
 		if err != nil {
 			log.Println("get user information error: ", err)
@@ -83,12 +83,17 @@ func main() {
 		}
 		defer resp.Body.Close()
 
-		bodyBytes, _ := ioutil.ReadAll(resp.Body)
-		var responseMap map[string]interface{}
+		io.Copy(w, resp.Body)
 
-		// get user information with JSON format
-		json.Unmarshal(bodyBytes, &responseMap)
-		log.Println("get user information with access token: ", responseMap["clientID"])
+		// uncomment this part when you need to receive user data from auth server
+		/*
+			bodyBytes, _ := ioutil.ReadAll(resp.Body)
+			var responseMap map[string]interface{}
+
+			// get user information with JSON format
+			json.Unmarshal(bodyBytes, &responseMap)
+			log.Println("get user information with access token: ", responseMap["clientID"])
+		*/
 
 	})
 

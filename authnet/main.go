@@ -20,12 +20,14 @@ func main() {
 	// token store
 	manager.MustTokenStorage(store.NewMemoryTokenStore())
 
+	// this token configuration is just for test...
+	// remove/change this part after test ===================================
 	tokenCfg := manage.DefaultAuthorizeCodeTokenCfg
-	tokenCfg.AccessTokenExp = time.Minute * 2
-	tokenCfg.RefreshTokenExp = time.Minute * 4
-	// log.Println("Token config:", tokenCfg)
+	tokenCfg.AccessTokenExp = time.Minute
+	tokenCfg.RefreshTokenExp = time.Hour
 
 	manager.SetAuthorizeCodeTokenCfg(tokenCfg)
+	// remove/change this part after test ===================================
 
 	clientStore := store.NewClientStore()
 	clientStore.Set("delta-test", &models.Client{
@@ -53,7 +55,6 @@ func main() {
 	// 1. routed to 'authorize' by client
 	// 13. call '/authorize POST' after press 'Allow' button in auth.html
 	http.HandleFunc("/authorize", func(w http.ResponseWriter, r *http.Request) {
-		log.Println("Authorize process")
 		store, err := session.Start(nil, w, r)
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
@@ -88,27 +89,37 @@ func main() {
 
 	// send user information to client with token
 	http.HandleFunc("/userinfo", func(w http.ResponseWriter, r *http.Request) {
-		token, err := srv.ValidationBearerToken(r)
+		tokenInfo, err := srv.ValidationBearerToken(r)
+		log.Println("user info token:", tokenInfo)
 		if err != nil {
-			// if fail on getting token...
+			// if fail on getting token info
+			log.Println("fail getting token info:", err)
 			http.Error(w, err.Error(), http.StatusBadRequest)
 			return
 		}
 
 		// TODO: Get user information from client ID, and set in `userData`
 		userData := map[string]interface{}{
-			"expireRemain": int64(token.GetAccessCreateAt().Add(token.GetAccessExpiresIn()).Sub(time.Now()).Seconds()),
-			"clientID":     token.GetClientID(),
-			"userID":       token.GetUserID(),
+			"expireRemain": int64(tokenInfo.GetAccessCreateAt().Add(tokenInfo.GetAccessExpiresIn()).Sub(time.Now()).Seconds()),
+			"clientID":     tokenInfo.GetClientID(),
+			"userID":       tokenInfo.GetUserID(),
 			"plan":         "trial",
 		}
 
-		jsonData, _ := json.Marshal(userData)
-		w.Header().Set("Content-Type", "application/json")
-		w.WriteHeader(http.StatusCreated)
-		w.Write(jsonData)
+		// jsonData, _ := json.Marshal(userData)
 
-		return
+		e := json.NewEncoder(w)
+		e.SetIndent("", "  ")
+		e.Encode(userData)
+
+		// uncomment this part when you need to return `userData` to client
+		/*
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(http.StatusCreated)
+			w.Write(jsonData)
+
+			return
+		*/
 	})
 
 	log.Println("Server is running at 9096 port.")
