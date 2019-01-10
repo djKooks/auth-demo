@@ -7,6 +7,7 @@ import (
 	"log"
 	"net/http"
 	"os"
+	"time"
 
 	"golang.org/x/oauth2"
 )
@@ -95,6 +96,29 @@ func main() {
 			log.Println("get user information with access token: ", responseMap["clientID"])
 		*/
 
+	})
+
+	http.HandleFunc("/refresh", func(w http.ResponseWriter, r *http.Request) {
+		if globalToken == nil {
+			http.Redirect(w, r, "/", http.StatusFound)
+			return
+		}
+
+		globalToken.Expiry = time.Now()
+		token, err := config.TokenSource(context.Background(), globalToken).Token()
+
+		if err != nil {
+			log.Println("token refreshing err: ", err.Error())
+			// TODO:
+			// need to check detail, to see error code is `invalid_grant`(refresh token expired) or not,
+			// and redirect to root only it is expired
+			globalToken = nil
+			http.Redirect(w, r, "/", http.StatusFound)
+			return
+		}
+		log.Println("refreshed token: ", token)
+
+		globalToken = token
 	})
 
 	log.Println("Client is running at 9094 port.")
