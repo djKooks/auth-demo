@@ -1,2 +1,3 @@
 # ignore build result
-main
+authnet/main
+**/venv

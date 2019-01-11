@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"io"
 	"log"
@@ -117,8 +118,11 @@ func main() {
 			return
 		}
 		log.Println("refreshed token: ", token)
-
 		globalToken = token
+
+		e := json.NewEncoder(w)
+		e.SetIndent("", "  ")
+		e.Encode(token)
 	})
 
 	log.Println("Client is running at 9094 port.")

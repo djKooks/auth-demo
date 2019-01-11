@@ -21,7 +21,7 @@ func LoginHandler(w http.ResponseWriter, req *http.Request) {
 		pw := req.PostFormValue("password")
 
 		// TODO: need to check name and password by comparing user data from Database
-		if name == "2222" && pw == "222222" {
+		if name == "test" && pw == "test" {
 			store.Set("LoggedInUserID", name)
 			store.Save()
 

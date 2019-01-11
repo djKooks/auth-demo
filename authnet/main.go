@@ -23,18 +23,20 @@ func main() {
 	// this token configuration is just for test...
 	// remove/change this part after test ===================================
 	tokenCfg := manage.DefaultAuthorizeCodeTokenCfg
-	tokenCfg.AccessTokenExp = time.Minute
-	tokenCfg.RefreshTokenExp = time.Hour
+	tokenCfg.AccessTokenExp = time.Hour
+	tokenCfg.RefreshTokenExp = time.Hour * 2
 
 	manager.SetAuthorizeCodeTokenCfg(tokenCfg)
 	// remove/change this part after test ===================================
 
+	// setup client information
 	clientStore := store.NewClientStore()
 	clientStore.Set("delta-test", &models.Client{
 		ID:     "delta-test",
 		Secret: "delta-test-secret",
 		Domain: "http://localhost:9094",
 	})
+
 	manager.MapClientStorage(clientStore)
 
 	srv := server.NewServer(server.NewConfig(), manager)
@@ -90,23 +92,21 @@ func main() {
 	// send user information to client with token
 	http.HandleFunc("/userinfo", func(w http.ResponseWriter, r *http.Request) {
 		tokenInfo, err := srv.ValidationBearerToken(r)
-		log.Println("user info token:", tokenInfo)
 		if err != nil {
 			// if fail on getting token info
-			log.Println("fail getting token info:", err)
+			log.Println("Fail getting token info:", err)
 			http.Error(w, err.Error(), http.StatusBadRequest)
 			return
 		}
 
 		// TODO: Get user information from client ID, and set in `userData`
 		userData := map[string]interface{}{
-			"expireRemain": int64(tokenInfo.GetAccessCreateAt().Add(tokenInfo.GetAccessExpiresIn()).Sub(time.Now()).Seconds()),
-			"clientID":     tokenInfo.GetClientID(),
-			"userID":       tokenInfo.GetUserID(),
-			"plan":         "trial",
+			"accessExpire":  int64(tokenInfo.GetAccessCreateAt().Add(tokenInfo.GetAccessExpiresIn()).Sub(time.Now()).Seconds()),
+			"refreshExpire": int64(tokenInfo.GetRefreshCreateAt().Add(tokenInfo.GetRefreshExpiresIn()).Sub(time.Now()).Seconds()),
+			"clientID":      tokenInfo.GetClientID(),
+			"userID":        tokenInfo.GetUserID(),
+			"plan":          "trial",
 		}
-
-		// jsonData, _ := json.Marshal(userData)
 
 		e := json.NewEncoder(w)
 		e.SetIndent("", "  ")
@@ -114,6 +114,7 @@ func main() {
 
 		// uncomment this part when you need to return `userData` to client
 		/*
+			jsonData, _ := json.Marshal(userData)
 			w.Header().Set("Content-Type", "application/json")
 			w.WriteHeader(http.StatusCreated)
 			w.Write(jsonData)
