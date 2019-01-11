@@ -2,12 +2,12 @@ package main
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
-	"io/ioutil"
+	"io"
 	"log"
 	"net/http"
 	"os"
+	"time"
 
 	"golang.org/x/oauth2"
 )
@@ -75,6 +75,7 @@ func main() {
 			return
 		}
 
+		log.Println("Access token:", globalToken.AccessToken)
 		resp, err := http.Get(fmt.Sprintf("%s/userinfo?access_token=%s", AuthServerURL, globalToken.AccessToken))
 		if err != nil {
 			log.Println("get user information error: ", err)
@@ -83,13 +84,41 @@ func main() {
 		}
 		defer resp.Body.Close()
 
-		bodyBytes, _ := ioutil.ReadAll(resp.Body)
-		var responseMap map[string]interface{}
+		io.Copy(w, resp.Body)
 
-		// get user information with JSON format
-		json.Unmarshal(bodyBytes, &responseMap)
-		log.Println("get user information with access token: ", responseMap["clientID"])
+		// uncomment this part when you need to receive user data from auth server
+		/*
+			bodyBytes, _ := ioutil.ReadAll(resp.Body)
+			var responseMap map[string]interface{}
 
+			// get user information with JSON format
+			json.Unmarshal(bodyBytes, &responseMap)
+			log.Println("get user information with access token: ", responseMap["clientID"])
+		*/
+
+	})
+
+	http.HandleFunc("/refresh", func(w http.ResponseWriter, r *http.Request) {
+		if globalToken == nil {
+			http.Redirect(w, r, "/", http.StatusFound)
+			return
+		}
+
+		globalToken.Expiry = time.Now()
+		token, err := config.TokenSource(context.Background(), globalToken).Token()
+
+		if err != nil {
+			log.Println("token refreshing err: ", err.Error())
+			// TODO:
+			// need to check detail, to see error code is `invalid_grant`(refresh token expired) or not,
+			// and redirect to root only it is expired
+			globalToken = nil
+			http.Redirect(w, r, "/", http.StatusFound)
+			return
+		}
+		log.Println("refreshed token: ", token)
+
+		globalToken = token
 	})
 
 	log.Println("Client is running at 9094 port.")

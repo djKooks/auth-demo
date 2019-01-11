@@ -26,7 +26,7 @@ func LoginHandler(w http.ResponseWriter, req *http.Request) {
 			store.Save()
 
 			// 9. move to 'LoggedHandler'
-			w.Header().Set("Location", "/auth")
+			w.Header().Set("Location", "/authorize")
 			w.WriteHeader(http.StatusFound)
 			return
 		} else {
@@ -36,8 +36,6 @@ func LoginHandler(w http.ResponseWriter, req *http.Request) {
 	}
 
 	// 7. show login page
-	log.Println("Show login page")
-
 	outputHtml(w, req, "static/login.html")
 }
 
@@ -68,7 +66,6 @@ func UserAuthorizeHandler(w http.ResponseWriter, req *http.Request) (userID stri
 	}
 
 	uid, ok := store.Get("LoggedInUserID")
-	log.Println("user id: ", uid)
 
 	if !ok {
 		// 4. There will be no 'LoggedInUserID' in store first time
@@ -89,6 +86,5 @@ func UserAuthorizeHandler(w http.ResponseWriter, req *http.Request) (userID stri
 	store.Delete("LoggedInUserID")
 	store.Save()
 
-	log.Println("direct login : ", req.Form)
 	return
 }
