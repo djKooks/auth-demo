@@ -1,9 +1,11 @@
 package main
 
 import (
+	"encoding/json"
 	"log"
 	"net/http"
 	"net/url"
+	"time"
 
 	"github.com/go-session/session"
 	"gopkg.in/oauth2.v3/errors"
@@ -17,6 +19,13 @@ func main() {
 	manager := manage.NewDefaultManager()
 	// token store
 	manager.MustTokenStorage(store.NewMemoryTokenStore())
+
+	tokenCfg := manage.DefaultAuthorizeCodeTokenCfg
+	tokenCfg.AccessTokenExp = time.Minute * 2
+	tokenCfg.RefreshTokenExp = time.Minute * 4
+	// log.Println("Token config:", tokenCfg)
+
+	manager.SetAuthorizeCodeTokenCfg(tokenCfg)
 
 	clientStore := store.NewClientStore()
 	clientStore.Set("delta-test", &models.Client{
@@ -75,6 +84,31 @@ func main() {
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 		}
+	})
+
+	// send user information to client with token
+	http.HandleFunc("/userinfo", func(w http.ResponseWriter, r *http.Request) {
+		token, err := srv.ValidationBearerToken(r)
+		if err != nil {
+			// if fail on getting token...
+			http.Error(w, err.Error(), http.StatusBadRequest)
+			return
+		}
+
+		// TODO: Get user information from client ID, and set in `userData`
+		userData := map[string]interface{}{
+			"expireRemain": int64(token.GetAccessCreateAt().Add(token.GetAccessExpiresIn()).Sub(time.Now()).Seconds()),
+			"clientID":     token.GetClientID(),
+			"userID":       token.GetUserID(),
+			"plan":         "trial",
+		}
+
+		jsonData, _ := json.Marshal(userData)
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusCreated)
+		w.Write(jsonData)
+
+		return
 	})
 
 	log.Println("Server is running at 9096 port.")

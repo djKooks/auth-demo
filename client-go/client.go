@@ -2,12 +2,18 @@ package main
 
 import (
 	"context"
+	"encoding/json"
+	"fmt"
+	"io/ioutil"
 	"log"
 	"net/http"
 	"os"
 
 	"golang.org/x/oauth2"
 )
+
+// authentication server url
+const AuthServerURL = "http://localhost:9096"
 
 var (
 	config = oauth2.Config{
@@ -16,15 +22,15 @@ var (
 		Scopes:       []string{"all"},
 		RedirectURL:  "http://localhost:9094/oauth2",
 		Endpoint: oauth2.Endpoint{
-			AuthURL:  "http://localhost:9096/authorize",
-			TokenURL: "http://localhost:9096/token",
+			AuthURL:  AuthServerURL + "/authorize",
+			TokenURL: AuthServerURL + "/token",
 		},
 	}
+	globalToken *oauth2.Token // this is token kept by client...it will be used to get user information from auth server
 )
 
 func main() {
 	http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
-		// TODO: need to generate random string for this
 		u := config.AuthCodeURL("delta-auth")
 		log.Println("handle root: " + u)
 		http.Redirect(w, r, u, http.StatusFound)
@@ -43,35 +49,15 @@ func main() {
 			return
 		}
 
-		log.Println("code 1: ", code)
-
 		token, err := config.Exchange(context.Background(), code)
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
 		}
 
-		client := config.Client(context.Background(), token)
-		log.Println("client: ", client)
-		/*
-			userInfoResp, err := client.Get(UserInfoAPIEndpoint)
-			if err != nil {
-				http.Error(w, err.Error(), http.StatusBadRequest)
-				return
-			}
-			defer userInfoResp.Body.Close()
-			userInfo, err := ioutil.ReadAll(userInfoResp.Body)
-			if err != nil {
-				http.Error(w, err.Error(), http.StatusBadRequest)
-				return
-			}
-			var authUser User
-			json.Unmarshal(userInfo, &authUser)
-		*/
-		// e := json.NewEncoder(w)
-		// e.SetIndent("", "  ")
-		// e.Encode(*token)
-		log.Println("redirect: ", w.Header())
+		globalToken = token
+
+		// Authentication success. Go to main page
 		w.Header().Set("Location", "/main")
 		w.WriteHeader(http.StatusFound)
 		return
@@ -79,6 +65,31 @@ func main() {
 
 	http.HandleFunc("/main", func(w http.ResponseWriter, r *http.Request) {
 		outputHTML(w, r, "static/client.html")
+	})
+
+	// get user information from auth server
+	http.HandleFunc("/user", func(w http.ResponseWriter, r *http.Request) {
+		if globalToken == nil {
+			// if there is no token in client side, request to auth server
+			http.Redirect(w, r, "/", http.StatusFound)
+			return
+		}
+
+		resp, err := http.Get(fmt.Sprintf("%s/userinfo?access_token=%s", AuthServerURL, globalToken.AccessToken))
+		if err != nil {
+			log.Println("get user information error: ", err)
+			http.Error(w, err.Error(), http.StatusBadRequest)
+			return
+		}
+		defer resp.Body.Close()
+
+		bodyBytes, _ := ioutil.ReadAll(resp.Body)
+		var responseMap map[string]interface{}
+
+		// get user information with JSON format
+		json.Unmarshal(bodyBytes, &responseMap)
+		log.Println("get user information with access token: ", responseMap["clientID"])
+
 	})
 
 	log.Println("Client is running at 9094 port.")
